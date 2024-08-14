@@ -25,10 +25,10 @@ RUN apt-get install -y --no-install-recommends \
     gcc-aarch64-linux-gnu libc6-arm64-cross libc6-dev-arm64-cross
 
 RUN apt-get install -y --no-install-recommends \
-    gcc-powerpc64le-linux-gnu libc6-ppc64le-cross libc6-dev-ppc64le-cross
+    gcc-powerpc64le-linux-gnu libc6-ppc64-cross libc6-dev-ppc64-cross
 
 RUN apt-get install -y --no-install-recommends \
-    gcc-multilib gcc-multilib-arm-linux-gnueabihf
+    gcc-multilib gcc-arm-linux-gnueabihf
 
 RUN apt-get install -y --no-install-recommends \
     gcc-s390x-linux-gnu libc6-s390x-cross libc6-dev-s390x-cross
