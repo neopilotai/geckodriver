@@ -4,13 +4,10 @@ FROM ubuntu:22.04 as builder
 # Install dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc-multilib gcc-arm-linux-gnueabihf \
-    gcc-aarch64-linux-gnu gcc-powerpc64le-linux-gnu \
+    gcc-aarch64-linux-gnu \
     gcc-mips-linux-gnu gcc-s390x-linux-gnu \
     libc6-armhf-cross libc6-dev-armhf-cross \
     libc6-arm64-cross libc6-dev-arm64-cross \
-    libc6-ppc64le-cross libc6-dev-ppc64le-cross \
-    libc6-mips-cross libc6-dev-mips-cross \
-    libc6-s390x-cross libc6-dev-s390x-cross \
     curl git cargo \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
