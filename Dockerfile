@@ -1,66 +1,60 @@
-# Base image
-FROM debian:latest
+# Stage 1: Build environment
+FROM ubuntu:22.04 as builder
 
-# Labels and Credits
-LABEL \
-  name="geckodriver" \
-  authors="Mozilla" \
-  contribution="latest ARM binaries of linux geckodriver"
-
-# tags local/geckodriver
-
-ARG GECKODRIVER_VERSION
-
-# Install dependencies and clone geckodriver source
-WORKDIR /opt
-
-# Separate RUN commands to debug step by step
+# Install dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc build-essential git cargo ca-certificates curl
+    gcc-multilib gcc-arm-linux-gnueabihf \
+    gcc-aarch64-linux-gnu gcc-powerpc64le-linux-gnu \
+    gcc-mips-linux-gnu gcc-s390x-linux-gnu \
+    libc6-armhf-cross libc6-dev-armhf-cross \
+    libc6-arm64-cross libc6-dev-arm64-cross \
+    libc6-ppc64le-cross libc6-dev-ppc64le-cross \
+    libc6-mips-cross libc6-dev-mips-cross \
+    libc6-s390x-cross libc6-dev-s390x-cross \
+    curl git cargo \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-RUN apt-get install -y --no-install-recommends \
-    gcc-arm-linux-gnueabihf libc6-armhf-cross libc6-dev-armhf-cross
+# Install Rust
+RUN curl https://sh.rustup.rs -sSf | bash -s -- -y \
+    && export PATH=$PATH:/root/.cargo/bin \
+    && rustup target add armv7-unknown-linux-gnueabihf \
+    && rustup target add aarch64-unknown-linux-gnu \
+    && rustup target add powerpc64le-unknown-linux-gnu \
+    && rustup target add i686-unknown-linux-gnu \
+    && rustup target add s390x-unknown-linux-gnu
 
-RUN apt-get install -y --no-install-recommends \
-    gcc-aarch64-linux-gnu libc6-arm64-cross libc6-dev-arm64-cross
+# Clone geckodriver and set up build environment
+RUN git clone https://github.com/mozilla/geckodriver.git /opt/geckodriver \
+    && cd /opt/geckodriver \
+    && git checkout v0.35.0
 
-RUN apt-get install -y --no-install-recommends \
-    gcc-powerpc64le-linux-gnu libc6-ppc64-cross libc6-dev-ppc64-cross
-
-RUN apt-get install -y --no-install-recommends \
-    gcc-multilib gcc-arm-linux-gnueabihf
-
-RUN apt-get install -y --no-install-recommends \
-    gcc-s390x-linux-gnu libc6-s390x-cross libc6-dev-s390x-cross
-
-RUN curl https://sh.rustup.rs -sSf | bash -s -- -y
-
-# Clone and checkout geckodriver
-RUN git clone https://github.com/mozilla/geckodriver.git && \
-    cd geckodriver && \
-    git checkout v$GECKODRIVER_VERSION && \
-    /root/.cargo/bin/rustup target install armv7-unknown-linux-gnueabihf && \
-    /root/.cargo/bin/rustup target install aarch64-unknown-linux-gnu && \
-    /root/.cargo/bin/rustup target install powerpc64le-unknown-linux-gnu && \
-    /root/.cargo/bin/rustup target install i686-unknown-linux-gnu && \
-    /root/.cargo/bin/rustup target install s390x-unknown-linux-gnu && \
-    echo "[target.armv7-unknown-linux-gnueabihf]" >> .cargo/config && \
-    echo "linker = \"arm-linux-gnueabihf-gcc\"" >> .cargo/config && \
-    echo "[target.aarch64-unknown-linux-gnu]" >> .cargo/config && \
-    echo "linker = \"aarch64-linux-gnu-gcc\""  >> .cargo/config && \
-    echo "[target.powerpc64le-unknown-linux-gnu]" >> .cargo/config && \
-    echo "linker = \"powerpc64le-linux-gnu-gcc\""  >> .cargo/config && \
-    echo "[target.i686-unknown-linux-gnu]" >> .cargo/config && \
-    echo "linker = \"gcc -m32\""  >> .cargo/config && \
-    echo "[target.s390x-unknown-linux-gnu]" >> .cargo/config && \
-    echo "linker = \"s390x-linux-gnu-gcc\""  >> .cargo/config
-
-# Cleanup
-RUN apt-get autoremove -y && apt-get clean -y && \
-    rm -rf /var/lib/apt/lists/* /var/cache/apt/*
-
-# Copy build script to container
+# Copy the build script to the container
 COPY build-arm.sh /opt/geckodriver/
 
-# Build geckodriver arm binary and copy to $PWD/artifacts
-CMD ["sh", "build-arm.sh"]
+# Build geckodriver for multiple architectures
+WORKDIR /opt/geckodriver
+RUN sh build-arm.sh release armv7-unknown-linux-gnueabihf \
+    && sh build-arm.sh release aarch64-unknown-linux-gnu \
+    && sh build-arm.sh release powerpc64le-unknown-linux-gnu \
+    && sh build-arm.sh release i686-unknown-linux-gnu \
+    && sh build-arm.sh release s390x-unknown-linux-gnu
+
+# Stage 2: Final image
+FROM debian:latest
+
+# Copy the built binaries from the builder stage
+COPY --from=builder /opt/geckodriver/target/armv7-unknown-linux-gnueabihf/release/geckodriver /usr/local/bin/geckodriver-armv7
+COPY --from=builder /opt/geckodriver/target/aarch64-unknown-linux-gnu/release/geckodriver /usr/local/bin/geckodriver-aarch64
+COPY --from=builder /opt/geckodriver/target/powerpc64le-unknown-linux-gnu/release/geckodriver /usr/local/bin/geckodriver-powerpc64le
+COPY --from=builder /opt/geckodriver/target/i686-unknown-linux-gnu/release/geckodriver /usr/local/bin/geckodriver-i686
+COPY --from=builder /opt/geckodriver/target/s390x-unknown-linux-gnu/release/geckodriver /usr/local/bin/geckodriver-s390x
+
+# Ensure that the binaries are executable
+RUN chmod +x /usr/local/bin/geckodriver-armv7 \
+    /usr/local/bin/geckodriver-aarch64 \
+    /usr/local/bin/geckodriver-powerpc64le \
+    /usr/local/bin/geckodriver-i686 \
+    /usr/local/bin/geckodriver-s390x
+
+# Set the default command
+CMD ["geckodriver-armv7"]
