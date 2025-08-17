@@ -1,38 +1,52 @@
 # Base image
-FROM debian:latest
+FROM debian:latest AS builder
 
-# Labels and Credits
-LABEL \
-  name="geckodriver" \
-  authors="Mozilla" \
-  contribution="latest ARM binaries of linux geckodriver"
+LABEL name="geckodriver"
+LABEL version="1.0"
+LABEL description="Builds latest ARM binaries of linux geckodriver"
+LABEL maintainer="Mozilla, enhancements by neopilotai"
+LABEL source="https://github.com/mozilla/geckodriver"
 
-# tags local/geckodriver
-
+# Set noninteractive frontend
+ARG DEBIAN_FRONTEND=noninteractive
 ARG GECKODRIVER_VERSION
 
-# Install dependencies and clone geckodriver source
-WORKDIR /opt
-RUN apt-get update -qqy \
-  && apt install -y --no-install-recommends \
-    gcc build-essential git cargo ca-certificates curl \
-    gcc-arm-linux-gnueabihf libc6-armhf-cross libc6-dev-armhf-cross \
-    gcc-aarch64-linux-gnu libc6-arm64-cross libc6-dev-arm64-cross \
-  && curl https://sh.rustup.rs -sSf | bash -s -- -y \
-  && git clone https://github.com/mozilla/geckodriver.git \
-  && cd geckodriver \
-  && git checkout v$GECKODRIVER_VERSION \
-  && /root/.cargo/bin/rustup target install armv7-unknown-linux-gnueabihf \
-  && /root/.cargo/bin/rustup target install aarch64-unknown-linux-gnu \
-  && echo "[target.armv7-unknown-linux-gnueabihf]" >> .cargo/config \
-  && echo "linker = \"arm-linux-gnueabihf-gcc\"" >> .cargo/config \
-  && echo "[target.aarch64-unknown-linux-gnu]" >> .cargo/config \
-  && echo "linker = \"aarch64-linux-gnu-gcc\""  >> .cargo/config \
-  && apt-get autoremove -y && apt-get clean -y \
-  && rm -rf /var/lib/apt/lists/* /var/cache/apt/*
+ENV CARGO_HOME=/root/.cargo
+ENV PATH="$CARGO_HOME/bin:$PATH"
 
-# Copy build script to container
+# Install dependencies
+WORKDIR /opt
+
+RUN apt-get update -qqy && \
+    apt-get install -y --no-install-recommends \
+      gcc build-essential git ca-certificates curl \
+      gcc-arm-linux-gnueabihf libc6-armhf-cross libc6-dev-armhf-cross \
+      gcc-aarch64-linux-gnu libc6-arm64-cross libc6-dev-arm64-cross && \
+    curl https://sh.rustup.rs -sSf | bash -s -- -y && \
+    git clone https://github.com/mozilla/geckodriver.git && \
+    cd geckodriver && \
+    git checkout v${GECKODRIVER_VERSION:-latest} && \
+    $CARGO_HOME/bin/rustup target install armv7-unknown-linux-gnueabihf && \
+    $CARGO_HOME/bin/rustup target install aarch64-unknown-linux-gnu && \
+    echo '[target.armv7-unknown-linux-gnueabihf]'      >> .cargo/config && \
+    echo 'linker = "arm-linux-gnueabihf-gcc"'          >> .cargo/config && \
+    echo '[target.aarch64-unknown-linux-gnu]'          >> .cargo/config && \
+    echo 'linker = "aarch64-linux-gnu-gcc"'            >> .cargo/config && \
+    apt-get autoremove -y && \
+    apt-get clean -y && \
+    rm -rf /var/lib/apt/lists/* /var/cache/apt/*
+
+# Copy build script into repo
 COPY build-arm.sh /opt/geckodriver/
 
-# Build geckodriver arm binary and copy to $PWD/artifacts
-CMD ["sh", "build-arm.sh"]
+WORKDIR /opt/geckodriver
+
+# Expose artifacts
+ENV ARTIFACTS_DIR=/opt/artifacts
+RUN mkdir -p $ARTIFACTS_DIR
+
+# Build geckodriver arm binary and copy to artifacts
+CMD ["sh", "build-arm.sh", "release", "aarch64-unknown-linux-gnu", "/opt/artifacts"]
+
+# HEALTHCHECK example (optional)
+HEALTHCHECK --interval=10s --timeout=5s CMD [ -f /opt/artifacts/geckodriver ] || exit 1

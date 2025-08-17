@@ -1,32 +1,73 @@
 #!/bin/bash
 set -e
 
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+show_help() {
+    echo -e "${YELLOW}Usage: $0 [release|debug] [TARGET_TRIPLE] [DEST_DIR]${NC}"
+    echo "  release|debug   Build type (default: release)"
+    echo "  TARGET_TRIPLE   Rust target triple (e.g., aarch64-unknown-linux-gnu)"
+    echo "  DEST_DIR        Output directory (default: /media/host)"
+}
+
+log_info() {
+    echo -e "${GREEN}[INFO]${NC} $1"
+}
+
+log_warn() {
+    echo -e "${YELLOW}[WARN]${NC} $1"
+}
+
+log_error() {
+    echo -e "${RED}[ERROR]${NC} $1"
+}
+
 TYPE=${1:-release}
 HOST_TRIPLE=$2
+DEST_DIR=${3:-/media/host}
 
-# Pass as 2nd argument: aarch64-unknown-linux-gnu or armv7-unknown-linux-gnueabihf
-# Else if blank then build for host architecture
+if [[ "$1" == "-h" || "$1" == "--help" ]]; then
+    show_help
+    exit 0
+fi
+
+if ! command -v cargo > /dev/null; then
+    log_error "Cargo is not installed. Please install Rust and Cargo."
+    exit 1
+fi
+
+if ! command -v rustup > /dev/null; then
+    log_error "Rustup is not installed. Please install Rustup."
+    exit 1
+fi
+
+if [ -f "$HOME/.cargo/env" ]; then
+    . "$HOME/.cargo/env"
+else
+    log_warn "$HOME/.cargo/env not found, continuing..."
+fi
+
+TARGET=""
 if [ -n "$HOST_TRIPLE" ]; then
     TARGET="--target $HOST_TRIPLE"
-    . $HOME/.cargo/env
-
-    # Check if Rust toolchain is installed
-    if ! rustup target list | grep -q "$HOST_TRIPLE"; then
-        echo "Adding Rust target: $HOST_TRIPLE"
-        rustup target add $HOST_TRIPLE
+    if ! rustup target list | grep -q "$HOST_TRIPLE (installed)"; then
+        log_info "Adding Rust target: $HOST_TRIPLE"
+        rustup target add "$HOST_TRIPLE"
     fi
 fi
 
-# Build the project
-echo "Building geckodriver with type: $TYPE and target: $HOST_TRIPLE"
-if [ "$TYPE" = "release" ]; then
-    cargo build --release $TARGET
-else
-    cargo build $TARGET
-fi
+JOBS=${JOBS:-$(nproc 2>/dev/null || echo 1)}
+log_info "Building geckodriver with type: $TYPE, target: ${HOST_TRIPLE:-host}, jobs: $JOBS"
+BUILD_CMD="cargo build $TARGET --jobs $JOBS"
+[ "$TYPE" = "release" ] && BUILD_CMD+=" --release"
 
-# Copy the built binary to /media/host
-TARGET_DIR="/opt/geckodriver/target"
+eval $BUILD_CMD
+
+TARGET_DIR="target"
 if [ -z "$HOST_TRIPLE" ]; then
     TARGET_FILE="$TARGET_DIR/$TYPE/geckodriver"
 else
@@ -34,9 +75,11 @@ else
 fi
 
 if [ -f "$TARGET_FILE" ]; then
-    echo "Copying $TARGET_FILE to /media/host"
-    cp "$TARGET_FILE" /media/host
+    log_info "Copying $TARGET_FILE to $DEST_DIR"
+    mkdir -p "$DEST_DIR"
+    cp "$TARGET_FILE" "$DEST_DIR"
+    log_info "Build and copy successful!"
 else
-    echo "Error: $TARGET_FILE not found!"
+    log_error "$TARGET_FILE not found!"
     exit 1
 fi
