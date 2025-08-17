@@ -51,9 +51,7 @@ else
     log_warn "$HOME/.cargo/env not found, continuing..."
 fi
 
-TARGET=""
 if [ -n "$HOST_TRIPLE" ]; then
-    TARGET="--target $HOST_TRIPLE"
     if ! rustup target list | grep -q "$HOST_TRIPLE (installed)"; then
         log_info "Adding Rust target: $HOST_TRIPLE"
         rustup target add "$HOST_TRIPLE"
