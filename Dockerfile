@@ -28,6 +28,7 @@ RUN apt-get update -qqy && \
     git checkout v${GECKODRIVER_VERSION:-latest} && \
     $CARGO_HOME/bin/rustup target install armv7-unknown-linux-gnueabihf && \
     $CARGO_HOME/bin/rustup target install aarch64-unknown-linux-gnu && \
+    mkdir -p .cargo && \
     echo '[target.armv7-unknown-linux-gnueabihf]'      >> .cargo/config && \
     echo 'linker = "arm-linux-gnueabihf-gcc"'          >> .cargo/config && \
     echo '[target.aarch64-unknown-linux-gnu]'          >> .cargo/config && \
