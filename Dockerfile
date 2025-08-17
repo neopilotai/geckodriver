@@ -8,7 +8,8 @@ LABEL maintainer="Mozilla, enhancements by neopilotai"
 LABEL source="https://github.com/mozilla/geckodriver"
 
 # Set noninteractive frontend
-ARG DEBIAN_FRONTEND=noninteractive
+# Dockerfile — set DEBIAN_FRONTEND as an environment variable
+ENV DEBIAN_FRONTEND=noninteractive
 ARG GECKODRIVER_VERSION
 
 ENV CARGO_HOME=/root/.cargo
