@@ -69,7 +69,7 @@ jobs:
         echo "For official release details, see [geckodriver release notes](https://github.com/mozilla/geckodriver/releases)." >> release_notes.md
 
     - name: Upload artifact binary
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: geckodriver-v${{ env.GECKODRIVER_VERSION }}-linux-${{ env.ARCH }}.tar.gz
         path: geckodriver-v${{ env.GECKODRIVER_VERSION }}-linux-${{ env.ARCH }}.tar.gz
