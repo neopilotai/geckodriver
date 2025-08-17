@@ -48,7 +48,7 @@ ENV ARTIFACTS_DIR=/opt/artifacts
 RUN mkdir -p $ARTIFACTS_DIR
 
 # Build geckodriver arm binary and copy to artifacts
-CMD ["sh", "build-arm.sh", "release", "aarch64-unknown-linux-gnu", "/opt/artifacts"]
+CMD ["bash", "build-arm.sh", "release", "aarch64-unknown-linux-gnu", "/opt/artifacts"]
 
 # HEALTHCHECK example (optional)
 HEALTHCHECK --interval=10s --timeout=5s CMD [ -f /opt/artifacts/geckodriver ] || exit 1
