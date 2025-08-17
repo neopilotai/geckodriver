@@ -36,15 +36,15 @@ jobs:
     - name: Build the Docker image build environment
       run: |
         docker buildx build \
-          --build-arg GECKODRIVER_VERSION=$GECKODRIVER_VERSION \
-          --build-arg HOST_TRIPLE=$HOST_TRIPLE \
-          --build-arg PLATFORM=$PLATFORM \
+          --build-arg "GECKODRIVER_VERSION=${GECKODRIVER_VERSION}" \
+          --build-arg "HOST_TRIPLE=${HOST_TRIPLE}" \
+          --build-arg "PLATFORM=${PLATFORM}" \
           --cache-from type=local,src=/tmp/.buildx-cache \
           --cache-to type=local,dest=/tmp/.buildx-cache-new,mode=max \
+          --load \
           -t local/geckodriver-cross-builder .
         rm -rf /tmp/.buildx-cache
         mv /tmp/.buildx-cache-new /tmp/.buildx-cache
-
     - name: Build the Docker image build environment
       run: |
         docker build --build-arg GECKODRIVER_VERSION=$GECKODRIVER_VERSION \
