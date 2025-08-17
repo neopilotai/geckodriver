@@ -19,7 +19,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
-    
+
     - name: Set environment variables
       run: |
         if [ "$ARCH" == "armv7l" ]; then
@@ -30,28 +30,43 @@ jobs:
             echo "HOST_TRIPLE=aarch64-unknown-linux-gnu" >> $GITHUB_ENV
         fi
 
+    - name: Cache Docker layers
+      uses: actions/cache@v3
+      with:
+        path: /tmp/.buildx-cache
+        key: ${{ runner.os }}-buildx-${{ env.ARCH }}-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-buildx-${{ env.ARCH }}-
+
     - name: Build the Docker image build environment
       run: |
-        docker build --build-arg GECKODRIVER_VERSION=$GECKODRIVER_VERSION -t local/geckodriver-cross-builder .
+        docker build --build-arg GECKODRIVER_VERSION=$GECKODRIVER_VERSION \
+          --build-arg HOST_TRIPLE=$HOST_TRIPLE \
+          --build-arg PLATFORM=$PLATFORM \
+          -t local/geckodriver-cross-builder .
 
-    - name: Build the geckodriver binaries in the artifacts directory
+    - name: Build geckodriver binaries in the artifacts directory
       run: |
-        docker run --rm -v $PWD/artifacts:/media/host -w /opt/geckodriver local/geckodriver-cross-builder sh -c "sh build-arm.sh release $HOST_TRIPLE"
-      
-    - name: Package up the binaries in a tar.gz and calculate md5 hashes
+        mkdir -p artifacts
+        docker run --rm -v $PWD/artifacts:/media/host -w /opt/geckodriver \
+          local/geckodriver-cross-builder sh -c "sh build-arm.sh release $HOST_TRIPLE /media/host"
+        ls -lh artifacts
+
+    - name: Package binaries, compute hashes and checksums
       run: |
         sudo chown -R $USER:$USER artifacts
         mv artifacts/geckodriver geckodriver
         tar cvfz geckodriver-v$GECKODRIVER_VERSION-linux-$ARCH.tar.gz geckodriver
         md5sum geckodriver-v$GECKODRIVER_VERSION-linux-$ARCH.tar.gz > geckodriver-v$GECKODRIVER_VERSION-linux-$ARCH.tar.gz.md5
+        sha256sum geckodriver-v$GECKODRIVER_VERSION-linux-$ARCH.tar.gz > geckodriver-v$GECKODRIVER_VERSION-linux-$ARCH.tar.gz.sha256
 
     - name: Generate release notes
       run: |
-        echo "NOTE:  This is an unofficial arm64 build and armhf of geckodriver v$GECKODRIVER_VERSION.  These binaries are compiled and built independently and are not provided by Mozilla." > release_notes.md
+        echo "NOTE: This is an unofficial arm64/armhf build of geckodriver v$GECKODRIVER_VERSION." > release_notes.md
         echo "" >> release_notes.md
-        echo "**NOTE: Mozilla has released geckodriver for linux-aarch64. Please use their official release instead of the unofficial one here. In the meantime, I have built linux-aarch64 to help make the transition easier. I will continue to build geckodriver linux-armv7.**" >> release_notes.md
+        echo "**NOTE: Mozilla has released geckodriver for linux-aarch64. Please use their official release if possible. This build is meant to help the transition and provide continued support for linux-armv7.**" >> release_notes.md
         echo "" >> release_notes.md
-        echo "For details of what is contained in this release, see the [official geckodriver release notes](https://github.com/mozilla/geckodriver/releases)." >> release_notes.md
+        echo "For official release details, see [geckodriver release notes](https://github.com/mozilla/geckodriver/releases)." >> release_notes.md
 
     - name: Upload artifact binary
       uses: actions/upload-artifact@v3
@@ -65,13 +80,19 @@ jobs:
         name: geckodriver-v${{ env.GECKODRIVER_VERSION }}-linux-${{ env.ARCH }}.tar.gz.md5
         path: geckodriver-v${{ env.GECKODRIVER_VERSION }}-linux-${{ env.ARCH }}.tar.gz.md5
 
-    - name: Upload artifact release_notes.md
+    - name: Upload artifact sha256
+      uses: actions/upload-artifact@v3
+      with:
+        name: geckodriver-v${{ env.GECKODRIVER_VERSION }}-linux-${{ env.ARCH }}.tar.gz.sha256
+        path: geckodriver-v${{ env.GECKODRIVER_VERSION }}-linux-${{ env.ARCH }}.tar.gz.sha256
+
+    - name: Upload release notes
       uses: actions/upload-artifact@v3
       with:
         name: release_notes.md
         path: release_notes.md
 
-    - name: Publish releases with binaries and md5 hashes
+    - name: Publish releases with binaries and hashes
       if: ${{ github.ref == 'refs/heads/master' && contains(toJson(github.event.commits), '[deploy]') }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -88,3 +109,5 @@ jobs:
         echo "Uploading files..."
         ~/go/bin/github-release upload -u $GITHUB_REPOSITORY_OWNER -r geckodriver --tag v$RELEASE_TAG --name geckodriver-v$GECKODRIVER_VERSION-linux-$ARCH.tar.gz --file geckodriver-v$GECKODRIVER_VERSION-linux-$ARCH.tar.gz
         ~/go/bin/github-release upload -u $GITHUB_REPOSITORY_OWNER -r geckodriver --tag v$RELEASE_TAG --name geckodriver-v$GECKODRIVER_VERSION-linux-$ARCH.tar.gz.md5 --file geckodriver-v$GECKODRIVER_VERSION-linux-$ARCH.tar.gz.md5
+        ~/go/bin/github-release upload -u $GITHUB_REPOSITORY_OWNER -r geckodriver --tag v$RELEASE_TAG --name geckodriver-v$GECKODRIVER_VERSION-linux-$ARCH.tar.gz.sha256 --file geckodriver-v$GECKODRIVER_VERSION-linux-$ARCH.tar.gz.sha256
+        ~/go/bin/github-release upload -u $GITHUB_REPOSITORY_OWNER -r geckodriver --tag v$RELEASE_TAG --name release_notes.md --file release_notes.md
