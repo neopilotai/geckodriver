@@ -62,11 +62,12 @@ fi
 
 JOBS=${JOBS:-$(nproc 2>/dev/null || echo 1)}
 log_info "Building geckodriver with type: $TYPE, target: ${HOST_TRIPLE:-host}, jobs: $JOBS"
-BUILD_CMD="cargo build $TARGET --jobs $JOBS"
-[ "$TYPE" = "release" ] && BUILD_CMD+=" --release"
+BUILD_ARGS=(build)
+[ -n "$HOST_TRIPLE" ] && BUILD_ARGS+=(--target "$HOST_TRIPLE")
+BUILD_ARGS+=(--jobs "$JOBS")
+[ "$TYPE" = "release" ] && BUILD_ARGS+=(--release)
 
-eval $BUILD_CMD
-
+cargo "${BUILD_ARGS[@]}"
 TARGET_DIR="target"
 if [ -z "$HOST_TRIPLE" ]; then
     TARGET_FILE="$TARGET_DIR/$TYPE/geckodriver"
