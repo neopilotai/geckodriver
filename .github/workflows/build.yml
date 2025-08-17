@@ -81,7 +81,7 @@ jobs:
         path: geckodriver-v${{ env.GECKODRIVER_VERSION }}-linux-${{ env.ARCH }}.tar.gz.md5
 
     - name: Upload artifact sha256
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: geckodriver-v${{ env.GECKODRIVER_VERSION }}-linux-${{ env.ARCH }}.tar.gz.sha256
         path: geckodriver-v${{ env.GECKODRIVER_VERSION }}-linux-${{ env.ARCH }}.tar.gz.sha256
